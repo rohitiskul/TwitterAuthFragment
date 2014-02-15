@@ -1,4 +1,4 @@
-package com.tweet4rk;
+package com.twitter4rk;
 /**
  * Copyright 2014 Rohit Kulkarni
  *
