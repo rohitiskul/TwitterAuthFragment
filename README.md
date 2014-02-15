@@ -9,7 +9,7 @@ Usage
 
 ``` java
 TwitterAuthFragment.startTwitterAuth(this, CONSUMER_KEY, CONSUMER_SECRET, CALLBACK_URL,
-	new com.tweet4rk.TwitterAuthFragment.TwitterAuthListener() {
+	new TwitterAuthFragment.TwitterAuthListener() {
 	
 		@Override
 		public void onSuccess(String oauthToken,
