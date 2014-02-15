@@ -1,7 +1,8 @@
 TwitterAuthFragment
 ===================
 
-Twitter auth api with single method call using android fragment.
+Twitter auth api with single method call using android fragment. 
+You can download a jar file **[here](https://github.com/rohitiskul/TwitterAuthFragment/raw/master/twitter4rk_v1.0.jar)**
 
 
 Usage 
