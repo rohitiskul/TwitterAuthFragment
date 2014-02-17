@@ -2,25 +2,32 @@ TwitterAuthFragment
 ===================
 
 Twitter auth api with single method call using android fragment. 
-You can download a jar file **[here](https://github.com/rohitiskul/TwitterAuthFragment/raw/master/twitter4rk_v1.0.jar)**
+You can download a jar file **[here](https://github.com/rohitiskul/TwitterAuthFragment/raw/master/libs/twitter4rk_v1.1.jar)**
 
 
 Usage 
 ===================
 
 ``` java
-TwitterAuthFragment.startTwitterAuth(this, CONSUMER_KEY, CONSUMER_SECRET, CALLBACK_URL,
-	new TwitterAuthFragment.TwitterAuthListener() {
+// Create builder for the auth fragment
+TwitterConfigBuilder builder = TwitterConfigBuilder.Builder(this)
+				.hideActionBar(true)
+				.setShowProgress(true)
+				.setProgressMessage(LOADING_MESSAGE)
+				.setCallbakUrl(CALLBACK_URL)
+				.setConsumerKey(CONSUMER_KEY)
+				.setConsumerSecret(CONSUMER_SECRET);
+// Start authentication				
+TwitterAuthFragment.startTwitterAuth(builder, new TwitterAuthFragment.TwitterAuthListener() {
 	
 		@Override
-		public void onSuccess(String oauthToken,
-				String oauthVerifier) {
-				// Here do whatever your like with oauthToken and oauthVerifier
+		public void onSuccess(String oauthToken, String oauthVerifier) {
+			// Here do whatever your like with oauthToken and oauthVerifier
 		}
 
 		@Override
 		public void onFailure(Exception e) {
-		    // Failure 
+			// Failure 
 		}
 	});
 ```
