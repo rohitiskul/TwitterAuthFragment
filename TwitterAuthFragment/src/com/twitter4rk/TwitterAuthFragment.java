@@ -1,4 +1,5 @@
 package com.twitter4rk;
+
 /**
  * Copyright 2014 Rohit Kulkarni
  *
@@ -16,21 +17,21 @@ package com.twitter4rk;
  * 
  * */
 
-
 import twitter4j.Twitter;
 import twitter4j.TwitterException;
 import twitter4j.TwitterFactory;
 import twitter4j.auth.RequestToken;
 import twitter4j.conf.ConfigurationBuilder;
+import android.app.ProgressDialog;
 import android.net.Uri;
 import android.os.Bundle;
 import android.os.Handler;
 import android.support.v4.app.Fragment;
-import android.support.v4.app.FragmentActivity;
 import android.support.v4.app.FragmentTransaction;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.webkit.WebChromeClient;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
 
@@ -47,21 +48,9 @@ public final class TwitterAuthFragment extends Fragment {
 	 */
 	public static final String TWITTER_AUTH_FRAGMENT_TAG = "TWITTER-AUTH-FRAGMENT";
 	/**
-	 * Callback url for requesting desired data from twitter4j API
+	 * Builder key
 	 */
-	private static final String CALLBACK_URL_KEY = "callback_url_key";
-	/**
-	 * Consumer key can be obtained from twitter app
-	 */
-	private static final String CONSUMER_KEY_KEY = "consumer_key_key";
-	/**
-	 * Consumer key can be obtained from twitter app
-	 */
-	private static final String CONSUMER_SECRET_KEY = "consumer_secret_key";
-	/**
-	 * Debug flag
-	 */
-	private boolean mIsDebug;
+	private static final String BUILDER_KEY = "builder_key";
 	/**
 	 * Authenticated or not
 	 */
@@ -71,13 +60,21 @@ public final class TwitterAuthFragment extends Fragment {
 	 */
 	private WebView mTwitterWebView;
 	/**
+	 * Web view loading dialog
+	 */
+	private ProgressDialog mProgressDialog;
+	/**
+	 * Twitter fragment config builder
+	 */
+	private TwitterConfigBuilder mBuilder;
+	/**
 	 * Twitter Listener to listen to twitter auth callbacks
 	 */
 	private TwitterAuthListener mListener;
 	/**
 	 * Single instance of this fragment
 	 */
-	private static TwitterAuthFragment mFragment;
+	private static TwitterAuthFragment mFragment = new TwitterAuthFragment();
 
 	/**
 	 * Method to start twitter authentication
@@ -94,19 +91,18 @@ public final class TwitterAuthFragment extends Fragment {
 	 * @param listener
 	 *            to listen to auth callbacks
 	 */
-	public static void startTwitterAuth(final FragmentActivity activity,
-			final String consumerKey, final String consumerSecret,
-			final String callbackUrl, final TwitterAuthListener listener) {
-		if (activity == null)
-			return;
-		final FragmentTransaction transaction = activity
+	public static void startTwitterAuth(final TwitterConfigBuilder builder,
+			final TwitterAuthListener listener) {
+		if (builder == null)
+			throw new NullPointerException("Builder cannot be null");
+		if (builder.activity == null)
+			throw new NullPointerException("Activity cannot be null");
+
+		final FragmentTransaction transaction = builder.activity
 				.getSupportFragmentManager().beginTransaction();
-		mFragment = new TwitterAuthFragment();
 		mFragment.setTwitterAuthListener(listener);
 		final Bundle args = new Bundle();
-		args.putString(CALLBACK_URL_KEY, callbackUrl);
-		args.putString(CONSUMER_KEY_KEY, consumerKey);
-		args.putString(CONSUMER_SECRET_KEY, consumerSecret);
+		args.putParcelable(BUILDER_KEY, builder);
 		mFragment.setArguments(args);
 		transaction.add(android.R.id.content, mFragment,
 				TWITTER_AUTH_FRAGMENT_TAG);
@@ -124,10 +120,6 @@ public final class TwitterAuthFragment extends Fragment {
 		mListener = listener;
 	}
 
-	public void enableDebug() {
-		mIsDebug = true;
-	}
-
 	@Override
 	public View onCreateView(LayoutInflater inflater, ViewGroup container,
 			Bundle savedInstanceState) {
@@ -136,55 +128,91 @@ public final class TwitterAuthFragment extends Fragment {
 		if (args == null) {
 			// This wont be case because startTwitterAuth() handles args for
 			// fragment
-			if (mListener != null)
-				mListener.onFailure(new IllegalArgumentException(
-						"No arguments passed to fragment"));
-			removeMe();
-			return mTwitterWebView;
+			throw new IllegalArgumentException(
+					"No arguments passed to fragment, Please use startTwitterAuth(...) method for showing this fragment");
 		}
-		final String callbackURL = args.getString(CALLBACK_URL_KEY);
-		final String consumerKey = args.getString(CONSUMER_KEY_KEY);
-		final String consumerSecretKey = args.getString(CONSUMER_SECRET_KEY);
+		// Get builder from args
+		mBuilder = args.getParcelable(BUILDER_KEY);
+		// Hide action bar
+		if (mBuilder.hideActionBar)
+			mBuilder.activity.getActionBar().hide();
+		// Init progress dialog
+		mProgressDialog = new ProgressDialog(mBuilder.activity);
+		mProgressDialog
+				.setMessage(mBuilder.progressText == null ? "Loading ..."
+						: mBuilder.progressText);
+		if (mBuilder.isProgressEnabled)
+			mProgressDialog.show();
 
+		// Init ConfigurationBuilder twitter4j
 		final ConfigurationBuilder cb = new ConfigurationBuilder();
-		if (mIsDebug)
+		if (mBuilder.isDebugEnabled)
 			cb.setDebugEnabled(true);
-		cb.setOAuthConsumerKey(consumerKey);
-		cb.setOAuthConsumerSecret(consumerSecretKey);
-		final Handler handler = new Handler();
+		cb.setOAuthConsumerKey(mBuilder.consumerKey);
+		cb.setOAuthConsumerSecret(mBuilder.consumerSecret);
+
+		// Web view client to handler url loading
 		mTwitterWebView.setWebViewClient(new WebViewClient() {
 			@Override
 			public boolean shouldOverrideUrlLoading(WebView view, String url) {
+				// Get url first
 				final Uri uri = Uri.parse(url);
-				if (url.contains(callbackURL)) {
+				// Check if we need to see for callback URL
+				if (mBuilder.callbackUrl != null
+						&& url.contains(mBuilder.callbackUrl)) {
+					// Get req info
 					String oauthToken = uri.getQueryParameter("oauth_token");
 					String oauthVerifier = uri
 							.getQueryParameter("oauth_verifier");
 					if (mListener != null)
 						mListener.onSuccess(oauthToken, oauthVerifier);
+					if (mBuilder.isActionBarVisible && mBuilder.hideActionBar
+							&& getActivity() != null)
+						getActivity().getActionBar().show();
 					mIsAuthenticated = true;
 					removeMe();
 					return true;
+					// If no callback URL then check for info directly
 				} else if (uri.getQueryParameter("oauth_token") != null
 						&& uri.getQueryParameter("oauth_verifier") != null) {
+					// Get req info
 					String oauthToken = uri.getQueryParameter("oauth_token");
 					String oauthVerifier = uri
 							.getQueryParameter("oauth_verifier");
 					if (mListener != null)
 						mListener.onSuccess(oauthToken, oauthVerifier);
+					if (mBuilder.isActionBarVisible && mBuilder.hideActionBar
+							&& getActivity() != null)
+						getActivity().getActionBar().show();
 					mIsAuthenticated = true;
 					removeMe();
 					return true;
+					// If nothing then its failure
 				} else {
+					// Notify user
 					if (mListener != null)
 						mListener
 								.onFailure(new Exception(
 										"Couldn't find the callback URL or oath parameters in response"));
+					if (mBuilder.isActionBarVisible && mBuilder.hideActionBar
+							&& getActivity() != null)
+						getActivity().getActionBar().show();
 					removeMe();
 					return false;
 				}
 			}
 		});
+		// Web Crome client to handler progress dialog visibility
+		mTwitterWebView.setWebChromeClient(new WebChromeClient() {
+			@Override
+			public void onProgressChanged(WebView view, int newProgress) {
+				if (newProgress == 100) {
+					if (mProgressDialog.isShowing())
+						mProgressDialog.dismiss();
+				}
+			}
+		});
+		final Handler handler = new Handler();
 		new Thread(new Runnable() {
 
 			@Override
@@ -194,11 +222,11 @@ public final class TwitterAuthFragment extends Fragment {
 							.build());
 					final Twitter twitter = twitterFactory.getInstance();
 					RequestToken requestToken = null;
-					if (callbackURL == null)
+					if (mBuilder.callbackUrl == null)
 						requestToken = twitter.getOAuthRequestToken();
 					else
 						requestToken = twitter
-								.getOAuthRequestToken(callbackURL);
+								.getOAuthRequestToken(mBuilder.callbackUrl);
 					final RequestToken finalRequestToken = requestToken;
 					handler.post(new Runnable() {
 
@@ -226,19 +254,21 @@ public final class TwitterAuthFragment extends Fragment {
 
 			@Override
 			public void run() {
-				FragmentActivity activity = getActivity();
-				if (activity == null)
+				if (mBuilder.activity == null)
 					return;
-				activity.onBackPressed();
+				mBuilder.activity.onBackPressed();
 			}
 		}, 200);
 	}
 
 	@Override
 	public void onDestroy() {
-		super.onDestroy();
 		if (mListener != null && !mIsAuthenticated)
 			mListener.onFailure(new Exception("User cancelled"));
+		if (mBuilder.isActionBarVisible && mBuilder.hideActionBar
+				&& getActivity() != null)
+			getActivity().getActionBar().show();
+		super.onDestroy();
 	}
 
 	public interface TwitterAuthListener {
