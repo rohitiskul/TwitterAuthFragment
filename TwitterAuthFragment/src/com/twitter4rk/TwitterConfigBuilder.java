@@ -111,6 +111,7 @@ public class TwitterConfigBuilder implements Parcelable {
 		isProgressEnabled = in.readByte() != 0x00;
 		hideActionBar = in.readByte() != 0x00;
 		callbackUrl = in.readString();
+		isActionBarVisible = in.readByte() != 0x00;
 	}
 
 	@Override
@@ -127,6 +128,7 @@ public class TwitterConfigBuilder implements Parcelable {
 		dest.writeByte((byte) (isProgressEnabled ? 0x01 : 0x00));
 		dest.writeByte((byte) (hideActionBar ? 0x01 : 0x00));
 		dest.writeString(callbackUrl);
+		dest.writeByte((byte) (isActionBarVisible ? 0x01 : 0x00));
 	}
 
 	public static final Parcelable.Creator<TwitterConfigBuilder> CREATOR = new Parcelable.Creator<TwitterConfigBuilder>() {
